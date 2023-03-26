@@ -16,7 +16,8 @@ Releases:
 
 /*GLOBALS*/
 #define STX 0x02                        //Local frame header/delimiter  
-
+#define ACK 0x06
+#define NAK 0x15
 
 //MIB Objects
 #define Modem_configuration     0x00
@@ -101,23 +102,22 @@ void init_ST7580_uart(){
 }
 
 boolean  ST7580_query_status(){
- 
+
+ //Local variables
  uint16_t i = 0;
  char  buf[10]= "";           //init and empty the buffer
  
- //Check modem status 
- for(i = 0; i <= 1; i++){
+ //Check modem status
+ while(1){
     while (!(Serial.available() > 0));                    //Wait for USART data to be available 
     buf[i] = Serial.read();
- }
- //return true;
- if (buf[1] == 0x09){ 
-  return true;
- }
- else{
-  return true;
- }
+    //delay(1);
+    if (buf[i] == 0x09) break;
+    i++; 
+  }
 
+  if (buf[1] == 0x09) return true;
+  else return false; 
 } 
 
 
@@ -127,7 +127,9 @@ void Host_to_ST7580_MIB_ReadRequest(uint8_t request_obj, uint8_t req_data_length
   //Init local variables 
   uint16_t i = 0;
   uint16_t checksum = 0x0000;
+  uint16_t rx_checksum = 0x0000;
   char  buf[10]= "";           //init and empty the buffer
+  char  rx_buf[50]= "";
   
   //Calc checksum
   checksum = MIB_ReadRequest + request_obj + req_data_length;
@@ -139,6 +141,7 @@ void Host_to_ST7580_MIB_ReadRequest(uint8_t request_obj, uint8_t req_data_length
   //Drive T_REQ LOW to start status req from modem
   PORTB &= ~(1 << PORTB4);
 
+/*
  //Check modem status
   while(1){
     while (!(Serial.available() > 0));                    //Wait for USART data to be available 
@@ -147,6 +150,10 @@ void Host_to_ST7580_MIB_ReadRequest(uint8_t request_obj, uint8_t req_data_length
     if (buf[i] == 0x09) break;
     i++; 
   }
+*/
+
+  STATUS_FLAG = ST7580_query_status();
+  //if(STATUS_FLAG == false) return;
   delay(10);
 
   //Send local from from host to modem within TSR (200ms) of modem status response or else modem will timeout and host local fram will not be interpreted by modem
@@ -160,7 +167,29 @@ void Host_to_ST7580_MIB_ReadRequest(uint8_t request_obj, uint8_t req_data_length
   Serial.write(request_obj);                    //Send MIB Object index from host to modem
   Serial.write(checksum & 0xFF);                //Send Checksum (2 bytes long, LSByte first (e.x. checksum = 0x0017, send 0x17 first then 0x00)
   Serial.write((checksum & 0xFF00)>>8);
-  while (!(Serial.available() > 0));            //Wait for modem ACK
+  
+  //Read and buffer modem response (including ACK byte)
+  for (i = 0; i < 9; i++){
+    while (!(Serial.available() > 0));          //Wait for rx byte
+    rx_buf[i] = Serial.read();
+  }
+
+  //Calculate RX checksum excluding ACK and STX bytes
+  for (i = 0; i < 5; i++){
+    rx_checksum += rx_buf[i+2];
+  }
+
+  /*Respond with an ACK from host to modem if message 
+  recevied checksum and calculate checksum is correct
+  */
+  delayMicroseconds(250);
+  if ((rx_checksum & 0xFF) == rx_buf[6]){
+    Serial.write(ACK);
+  }
+  else{
+    Serial.write(NAK);
+  }
+
   
   //memcpy(buf,temp,n);                         //Copy received message into global message buffer
 }
