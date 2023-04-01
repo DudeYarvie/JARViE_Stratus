@@ -1,7 +1,7 @@
 /**
 ST7580.ino
 Author: Jarvis Hill (hilljarvis@gmail.com)
-Purpose: Example showing how to send a command to another JARViE PLM device (Demo Board, Shield, Shahara, etc.) and wait for a response
+Purpose: 
 Date:16-MAR-2023
 References: 
             -ST7580 datasheet
@@ -74,6 +74,8 @@ bool STATUS_FLAG = false;
 
 
 /*PROTOTYPES*/
+
+
 void init_ST7580_io(){
 
   //Hold device in reset (active LOW)
@@ -96,10 +98,12 @@ void init_ST7580_io(){
 
 }
 
+
 void init_ST7580_uart(){
   //set uart baud to 57600
   Serial.begin(57600);
 }
+
 
 boolean  ST7580_query_status(){
 
@@ -116,6 +120,7 @@ boolean  ST7580_query_status(){
     i++; 
   }
 
+  //TODO: Update this to return the status bytes because value won't be static 25-MAR-2023
   if (buf[1] == 0x09) return true;
   else return false; 
 } 
@@ -141,17 +146,7 @@ void Host_to_ST7580_MIB_ReadRequest(uint8_t request_obj, uint8_t req_data_length
   //Drive T_REQ LOW to start status req from modem
   PORTB &= ~(1 << PORTB4);
 
-/*
- //Check modem status
-  while(1){
-    while (!(Serial.available() > 0));                    //Wait for USART data to be available 
-    buf[i] = Serial.read();
-    //delay(1);
-    if (buf[i] == 0x09) break;
-    i++; 
-  }
-*/
-
+  //TODO: determine if loop needs to break if status message not received 25-MAR-2023
   STATUS_FLAG = ST7580_query_status();
   //if(STATUS_FLAG == false) return;
   delay(10);
@@ -194,6 +189,7 @@ void Host_to_ST7580_MIB_ReadRequest(uint8_t request_obj, uint8_t req_data_length
   //memcpy(buf,temp,n);                         //Copy received message into global message buffer
 }
 
+
 //Receive data from modem
 /*
 If the length and the checksum of the local frame are both correct, the external host
@@ -204,6 +200,7 @@ changing the STX value to 03h
 void ST7580_RX_data(){
   //
 }
+
 
 void setup() {
   
@@ -217,8 +214,6 @@ void setup() {
   PORTD |= (1 << PORTD7);
   delay(10);
 
-  //ST7580_query_status();
-
   /*The ST7580 modem is always the communication master. In case of no local transfer, the
   ST7580 can initiate a local communication without taking into account the external host
   status. On the other hand, when the external host wants to send a local frame, it must first
@@ -230,8 +225,8 @@ void setup() {
   //Receive data from modem
   //ST7580_RX_data();
 
-
 }
+
 
 void loop() {
  
