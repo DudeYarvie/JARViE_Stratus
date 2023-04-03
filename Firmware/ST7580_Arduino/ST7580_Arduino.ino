@@ -29,7 +29,7 @@ Releases:
 #define DL_Data                 0x07
 #define SS_Data                 0x08
 #define Host_interface_timeout  0x09
-#define MIB_Object_FW           0x0A
+#define Firmware_version        0x0A
         
 //Request Commmand Codes
 #define BIO_ResetRequest        0x3C
@@ -121,23 +121,24 @@ boolean  ST7580_query_status(){
   }
 
   //TODO: Update this to return the status bytes because value won't be static 25-MAR-2023
+  //Need to test the code below 02-APR-2023
   if (buf[1] == 0x09) return true;
   else return false; 
 } 
 
 
 //TODO: Pass in Request CMD, received data buffer and received data size in bytes
-void Host_to_ST7580_MIB_ReadRequest(uint8_t request_obj, uint8_t req_data_length){
+void Host_to_ST7580_MIB_ReadRequest(uint8_t request_obj, uint8_t tx_req_data_length, uint8_t rx_req_data_length){
 
   //Init local variables 
   uint16_t i = 0;
-  uint16_t checksum = 0x0000;
+  uint16_t tx_checksum = 0x0000;
   uint16_t rx_checksum = 0x0000;
   char  buf[10]= "";           //init and empty the buffer
   char  rx_buf[50]= "";
   
   //Calc checksum
-  checksum = MIB_ReadRequest + request_obj + req_data_length;
+  tx_checksum = MIB_ReadRequest + request_obj + tx_req_data_length;
    
   //Ensure T_REQ is HIGH
   PORTB |= (1 << PORTB4);
@@ -157,28 +158,31 @@ void Host_to_ST7580_MIB_ReadRequest(uint8_t request_obj, uint8_t req_data_length
   delayMicroseconds(250);                       //Allow STX to be written out before driving T_REQ HIGH
   PORTB |= (1 << PORTB4);                       //Drive T_REQ HIGH after sending STX byte from MCU to modem
   delayMicroseconds(250);                       //Delay to allow T_REQ to go HIGH before next local frame byte is sent from MCU to modem
-  Serial.write(req_data_length);                //Send byte length of data field from host to modem
+  Serial.write(tx_req_data_length);                //Send byte length of data field from host to modem
   Serial.write(MIB_ReadRequest);                //Send command code from MCU to modem
   Serial.write(request_obj);                    //Send MIB Object index from host to modem
-  Serial.write(checksum & 0xFF);                //Send Checksum (2 bytes long, LSByte first (e.x. checksum = 0x0017, send 0x17 first then 0x00)
-  Serial.write((checksum & 0xFF00)>>8);
+  Serial.write(tx_checksum & 0xFF);                //Send Checksum (2 bytes long, LSByte first (e.x. checksum = 0x0017, send 0x17 first then 0x00)
+  Serial.write((tx_checksum & 0xFF00)>>8);
   
   //Read and buffer modem response (including ACK byte)
-  for (i = 0; i < 9; i++){
-    while (!(Serial.available() > 0));          //Wait for rx byte
+  uint8_t num_read_bytes = 6 + rx_req_data_length;             //constant 6 comes from ACK + STX + CONFIRM + PAYLOAD DATA LENGTH + 2 CHECKSUM BYTES
+  for (i = 0; i < num_read_bytes; i++){
+    while (!(Serial.available() > 0));                      //Wait for rx byte
     rx_buf[i] = Serial.read();
   }
 
   //Calculate RX checksum excluding ACK and STX bytes
-  for (i = 0; i < 5; i++){
-    rx_checksum += rx_buf[i+2];
+  uint8_t checksum_bytes = num_read_bytes - 4;              //constant 4 because we want to exclude ACK, STX and 2 CHECKSUM bytes from checksum calculation
+  for (i = 0; i < checksum_bytes; i++){
+    rx_checksum += rx_buf[i+2];                             //data for checksum calc starts are buffer index 2 because ACK and STX bytes are stored in 
+                                                            //indexes 0 and 1
   }
 
   /*Respond with an ACK from host to modem if message 
   recevied checksum and calculate checksum is correct
   */
   delayMicroseconds(250);
-  if ((rx_checksum & 0xFF) == rx_buf[6]){
+  if ((rx_checksum & 0xFF) == rx_buf[num_read_bytes - 2]){   //only confirming LSB of received 2 byte checksum
     Serial.write(ACK);
   }
   else{
@@ -186,8 +190,81 @@ void Host_to_ST7580_MIB_ReadRequest(uint8_t request_obj, uint8_t req_data_length
   }
 
   
-  //memcpy(buf,temp,n);                         //Copy received message into global message buffer
+  //memcpy(buf,temp,n);                                      //Copy received message into global message buffer
 }
+
+
+
+//TODO: Pass in Request CMD, received data buffer and received data size in bytes 
+//AND or consilidate this into the ReadRequest function 02-APR-2023
+void Host_to_ST7580_MIB_WriteRequest(uint8_t request_obj, uint8_t tx_req_data_length, uint8_t rx_req_data_length){
+
+  //Init local variables 
+  uint16_t i = 0;
+  uint16_t tx_checksum = 0x0000;
+  uint16_t rx_checksum = 0x0000;
+  char  buf[10]= "";                //init and empty the buffer
+  char  rx_buf[50]= "";
+  uint8_t request_obj_data = 0x10;
+  
+  //Calc checksum
+  //checksum = MIB_WriteRequest + request_obj + req_data_length;
+  tx_checksum = MIB_WriteRequest + request_obj + tx_req_data_length + request_obj_data;
+   
+  //Ensure T_REQ is HIGH
+  PORTB |= (1 << PORTB4);
+  delay(100);
+  
+  //Drive T_REQ LOW to start status req from modem
+  PORTB &= ~(1 << PORTB4);
+
+  //TODO: determine if loop needs to break if status message not received 25-MAR-2023
+  STATUS_FLAG = ST7580_query_status();
+  //if(STATUS_FLAG == false) return;
+  delay(10);
+
+  //Send local from from host to modem within TSR (200ms) of modem status response or else modem will timeout and host local fram will not be interpreted by modem
+  //Local frame format STX|Length|Command Code|DATA|Checksum
+  Serial.write(STX);                            //Send STX (Start of text delimiter) byte
+  delayMicroseconds(250);                       //Allow STX to be written out before driving T_REQ HIGH
+  PORTB |= (1 << PORTB4);                       //Drive T_REQ HIGH after sending STX byte from MCU to modem
+  delayMicroseconds(250);                       //Delay to allow T_REQ to go HIGH before next local frame byte is sent from MCU to modem
+  Serial.write(tx_req_data_length);                //Send byte length of data field from host to modem
+  Serial.write(MIB_WriteRequest);               //Send command code from MCU to modem
+  Serial.write(request_obj);                    //Send MIB Object index from host to modem
+  Serial.write(request_obj_data);                    //data to write to modem object 
+  Serial.write(tx_checksum & 0xFF);                //Send Checksum (2 bytes long, LSByte first (e.x. checksum = 0x0017, send 0x17 first then 0x00)
+  Serial.write((tx_checksum & 0xFF00)>>8);
+  
+  //Read and buffer modem response (including ACK byte)
+  uint8_t num_read_bytes = 6 + rx_req_data_length;             //constant 6 comes from ACK + STX + CONFIRM + PAYLOAD DATA LENGTH + 2 CHECKSUM BYTES
+  for (i = 0; i < num_read_bytes; i++){
+    while (!(Serial.available() > 0));                      //Wait for rx byte
+    rx_buf[i] = Serial.read();
+  }
+
+  //Calculate RX checksum excluding ACK and STX bytes
+  uint8_t checksum_bytes = num_read_bytes - 4;              //constant 4 because we want to exclude ACK, STX and 2 CHECKSUM bytes from checksum calculation
+  for (i = 0; i < checksum_bytes; i++){
+    rx_checksum += rx_buf[i+2];                             //data for checksum calc starts are buffer index 2 because ACK and STX bytes are stored in 
+                                                            //indexes 0 and 1
+  }
+
+  /*Respond with an ACK from host to modem if message 
+  recevied checksum and calculate checksum is correct
+  */
+  delayMicroseconds(250);
+  if ((rx_checksum & 0xFF) == rx_buf[num_read_bytes - 2]){   //only confirming LSB of received 2 byte checksum
+    Serial.write(ACK);
+  }
+  else{
+    Serial.write(NAK);
+  }
+
+}
+
+
+
 
 
 //Receive data from modem
@@ -224,12 +301,13 @@ void setup() {
 
   //Receive data from modem
   //ST7580_RX_data();
-
+  
 }
 
 
 void loop() {
  
-  Host_to_ST7580_MIB_ReadRequest(Host_interface_timeout, 1);                        //Check device firmware version 
+  //Host_to_ST7580_MIB_ReadRequest(Firmware_version, 1, 4);                       //ACK does not happen when device firmware version is read but calc and received checksum match 02-APR-2023
+  Host_to_ST7580_MIB_WriteRequest(Modem_configuration, 2,1);                      //Write modem configuration 
 
 }
