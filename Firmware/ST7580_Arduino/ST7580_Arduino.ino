@@ -12,6 +12,7 @@ Releases:
 
 
 /*INCLUDES*/
+#include "USART.h"
 
 
 /*GLOBALS*/
@@ -146,7 +147,6 @@ void Host_to_ST7580_MIB_ReadRequest(uint8_t request_obj, uint8_t tx_req_data_len
   uint16_t i = 0;
   uint16_t tx_checksum = 0x0000;
   uint16_t rx_checksum = 0x0000;
-  //char  buf[10]= "";           //init and empty the buffer
   uint8_t  rx_buf[50]= {0};
   
   //Calc checksum
@@ -154,7 +154,7 @@ void Host_to_ST7580_MIB_ReadRequest(uint8_t request_obj, uint8_t tx_req_data_len
    
   //Ensure T_REQ is HIGH
   PORTB |= (1 << PORTB4);
-  delay(100);
+  delay(10);
   
   //Drive T_REQ LOW to start status req from modem
   PORTB &= ~(1 << PORTB4);
@@ -177,17 +177,17 @@ void Host_to_ST7580_MIB_ReadRequest(uint8_t request_obj, uint8_t tx_req_data_len
   Serial.write((tx_checksum & 0xFF00)>>8);
   
   //Read and buffer modem response (including ACK byte)
-  uint8_t num_read_bytes = 6 + rx_req_data_length;             //constant 6 comes from ACK + STX + CONFIRM + PAYLOAD DATA LENGTH + 2 CHECKSUM BYTES
+  uint8_t num_read_bytes = 6 + rx_req_data_length;               //constant 6 comes from ACK + STX + CONFIRM + PAYLOAD DATA LENGTH + 2 CHECKSUM BYTES
   for (i = 0; i < num_read_bytes; i++){
-    while (!(Serial.available() > 0));                      //Wait for rx byte
+    while (!(Serial.available() > 0));                           //Wait for rx byte
     rx_buf[i] = Serial.read();
   }
 
   //Calculate RX checksum excluding ACK and STX bytes
-  uint8_t checksum_bytes = num_read_bytes - 4;                //constant 4 because we want to exclude ACK, STX and 2 CHECKSUM bytes from checksum calculation
+  uint8_t checksum_bytes = num_read_bytes - 4;                   //constant 4 because we want to exclude ACK, STX and 2 CHECKSUM bytes from checksum calculation
   for (i = 0; i < checksum_bytes; i++){ 
-    rx_checksum += rx_buf[i+2];                               //data for checksum calc starts are buffer index 2 because ACK and STX bytes are stored in 
-                                                              //indexes 0 and 1
+    rx_checksum += rx_buf[i+2];                                  //data for checksum calc starts are buffer index 2 because ACK and STX bytes are stored in 
+                                                                 //indexes 0 and 1
   }
 
   /*Respond with an ACK from host to modem if message 
@@ -202,7 +202,7 @@ void Host_to_ST7580_MIB_ReadRequest(uint8_t request_obj, uint8_t tx_req_data_len
   }
 
   
-  //memcpy(buf,temp,n);                                       //Copy received message into global message buffer
+  //memcpy(buf,temp,n);                                          //Copy received message into global message buffer
 }
 
 
@@ -211,21 +211,22 @@ void Host_to_ST7580_MIB_ReadRequest(uint8_t request_obj, uint8_t tx_req_data_len
 //AND or consilidate this into the ReadRequest function 02-APR-2023
 void Host_to_ST7580_MIB_WriteRequest(uint8_t request_obj, uint8_t tx_req_data_length, uint8_t rx_req_data_length){
 
+  while(Serial.available()) Serial.read();        //Clear the serial buffer
+  
   //Init local variables 
   uint16_t i = 0;
   uint16_t tx_checksum = 0x0000;
   uint16_t rx_checksum = 0x0000;
-  char  buf[10]= "";                //init and empty the buffer
-  char  rx_buf[50]= "";
+  uint8_t  rx_buf[10]= {0};
   uint8_t request_obj_data = 0x10;
   
   //Calc checksum
-  //checksum = MIB_WriteRequest + request_obj + req_data_length;
   tx_checksum = MIB_WriteRequest + request_obj + tx_req_data_length + request_obj_data;
+  //tx_checksum = MIB_WriteRequest + request_obj + tx_req_data_length;                      //DEBUGGING WHY WRITE REQ ISN'T WORKING 18-JUNE-2023
    
   //Ensure T_REQ is HIGH
   PORTB |= (1 << PORTB4);
-  delay(100);
+  delay(10);
   
   //Drive T_REQ LOW to start status req from modem
   PORTB &= ~(1 << PORTB4);
@@ -235,44 +236,49 @@ void Host_to_ST7580_MIB_WriteRequest(uint8_t request_obj, uint8_t tx_req_data_le
   //if(STATUS_FLAG == false) return;
   delay(10);
 
+  
   //Send local from from host to modem within TSR (200ms) of modem status response or else modem will timeout and host local fram will not be interpreted by modem
   //Local frame format STX|Length|Command Code|DATA|Checksum
-  Serial.write(STX);                            //Send STX (Start of text delimiter) byte
-  delayMicroseconds(250);                       //Allow STX to be written out before driving T_REQ HIGH
-  PORTB |= (1 << PORTB4);                       //Drive T_REQ HIGH after sending STX byte from MCU to modem
-  delayMicroseconds(250);                       //Delay to allow T_REQ to go HIGH before next local frame byte is sent from MCU to modem
-  Serial.write(tx_req_data_length);                //Send byte length of data field from host to modem
-  Serial.write(MIB_WriteRequest);               //Send command code from MCU to modem
-  Serial.write(request_obj);                    //Send MIB Object index from host to modem
-  Serial.write(request_obj_data);                    //data to write to modem object 
-  Serial.write(tx_checksum & 0xFF);                //Send Checksum (2 bytes long, LSByte first (e.x. checksum = 0x0017, send 0x17 first then 0x00)
-  Serial.write((tx_checksum & 0xFF00)>>8);
-  
-  //Read and buffer modem response (including ACK byte)
-  uint8_t num_read_bytes = 6 + rx_req_data_length;             //constant 6 comes from ACK + STX + CONFIRM + PAYLOAD DATA LENGTH + 2 CHECKSUM BYTES
+  Serial.write(STX);                                //Send STX (Start of text delimiter) byte
+  delayMicroseconds(250);                           //Allow STX to be written out before driving T_REQ HIGH
+  PORTB |= (1 << PORTB4);                           //Drive T_REQ HIGH after sending STX byte from MCU to modem
+  delayMicroseconds(250);                           //Delay to allow T_REQ to go HIGH before next local frame byte is sent from MCU to modem
+  Serial.write(tx_req_data_length);                 //Send byte length of data field from host to modem
+  Serial.write(MIB_WriteRequest);                   //Send command code from MCU to modem
+  Serial.write(request_obj);                        //Send MIB Object index from host to modem
+  Serial.write(request_obj_data);                   //data to write to modem object.
+  Serial.write(tx_checksum & 0xFF);                 //Send Checksum (2 bytes long, LSByte first (e.x. checksum = 0x0017, send 0x17 first then 0x00)
+  Serial.write((tx_checksum & 0xFF00)>>8);          
+  //Serial.write(ACK);                              //DEBG: ACK will send before modem responds but not after
+
+  while(Serial.available()) Serial.read();          //Clear the buffer.  This line is needed or else the code skips all the way to the end and sends a NAK
+  uint8_t num_read_bytes = 6;
   for (i = 0; i < num_read_bytes; i++){
-    while (!(Serial.available() > 0));                      //Wait for rx byte
+    while (!(Serial.available() > 0));              //Wait for rx byte
     rx_buf[i] = Serial.read();
   }
-
+  
   //Calculate RX checksum excluding ACK and STX bytes
-  uint8_t checksum_bytes = num_read_bytes - 4;              //constant 4 because we want to exclude ACK, STX and 2 CHECKSUM bytes from checksum calculation
+  uint8_t checksum_bytes = num_read_bytes - 4;
   for (i = 0; i < checksum_bytes; i++){
-    rx_checksum += rx_buf[i+2];                             //data for checksum calc starts are buffer index 2 because ACK and STX bytes are stored in 
-                                                            //indexes 0 and 1
+    rx_checksum += rx_buf[i+2];                               //Data for checksum calc starts are buffer index 1 because STX byte should not be factored into checksum calc
   }
-
+  
   /*Respond with an ACK from host to modem if message 
   recevied checksum and calculate checksum is correct
   */
   delayMicroseconds(250);
-  if ((rx_checksum & 0xFF) == rx_buf[num_read_bytes - 2]){   //only confirming LSB of received 2 byte checksum
-    Serial.write(ACK);
+  //Serial.flush();
+  //Serial.write(0x00);                                       //ACK will send in IF statement below when this serial write is executed but byte other than 0x06 needs to be sent 22-APR-2023
+  //while(Serial.available()) Serial.read();                  //Clear the buffer
+  //Serial.write(ACK);
+  if ((rx_checksum & 0xFF) == rx_buf[num_read_bytes - 2]){    //only confirming LSB of received 2 byte checksum.  This condition IS checking properly. 10-APR-2023
+    Serial.write(ACK);                                        //Serial.write will not send ACK byte.  It sends all other bytes by ACK 0x06.  Idk why. 10-APR-2023
   }
   else{
     Serial.write(NAK);
   }
-
+  
 }
 
 
@@ -286,6 +292,12 @@ acknowledges with an ACK character. In other cases, it answers with a NAK charac
 If the MCU sends a NAK to the ST7580, the ST7580 device repeats the frame only once after a delay corresponding to TACK,
 changing the STX value to 03h
 */
+
+//PhyData(plmOpts, dataBuf, dataLen, confData)  STM example code function name stm32_plm01a1.c
+void ST7580_TX_data(){
+  //
+}
+
 void ST7580_RX_data(){
   //
 }
@@ -318,9 +330,13 @@ void setup() {
 
 
 void loop() {
- 
-  Host_to_ST7580_MIB_ReadRequest(Firmware_version, 1, Firmware_version_PAYLOAD_SIZE);                       //ACK does not happen when device firmware version is read but calc and received checksum match 02-APR-2023
-  //Host_to_ST7580_MIB_WriteRequest(Modem_configuration, 2,1);                                              //Write modem configuration 
-  //delay(100);
+  Host_to_ST7580_MIB_ReadRequest(Modem_configuration, 1, Modem_configuration_PAYLOAD_SIZE);                   //Works 8/2/2025: Reads modem configuration. ACK sends by host MCU after responds with payload
+  delay(100);
+  //Host_to_ST7580_MIB_ReadRequest(Host_interface_timeout, 1, Host_interface_timeout_PAYLOAD_SIZE);           //Works 8/2/2025: Reads modem interface timeout. ACK sends by host MCU after responds with payload
+  //Host_to_ST7580_MIB_ReadRequest(Firmware_version, 1, Firmware_version_PAYLOAD_SIZE);                       //Works 8/2/2025: Reads modem firmware version. ACK sends by host MCU after responds with payload
+  //Host_to_ST7580_MIB_ReadRequest(PHY_configuration, 1, PHY_configuration_PAYLOAD_SIZE);                     //Works 8/2/2025: Reads modem PHY configuration. ACK sends by host MCU after responds with payload
+  //Host_to_ST7580_MIB_WriteRequest(Modem_configuration, 1,1);                                                //Write modem configuration
+  delay(100);
+
 
 }
