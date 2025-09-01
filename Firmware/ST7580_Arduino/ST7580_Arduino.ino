@@ -92,22 +92,22 @@ bool STATUS_FLAG = false;
 void init_ST7580_io(){
 
   //Hold device in reset (active LOW)
-  DDRD |= (1 << DDD7);
+  DDRD |= (1 << DDD7);                         //Arduino D7
   PORTD &= ~(1 << PORTD7);
   
   //Tri-state PORTC5 and PORTC4 so ST7580 can drive RX and TX LEDs.  IC appears to init LEDs ON upon power-on or reset.
   DDRC  &=  ~(1 << DDC5)|~(1 << DDC4);
   PORTC &=  ~(1 << PORTC5)|~(1 << PORTC4);
 
-  //Init UART control line T_REQ HIGH
-  DDRB  |=  (1 << DDB4);
+  //Init UART control line T_REQ HIGH     
+  DDRB  |=  (1 << DDB4);                       //Arduino D12      
   PORTB |= (1 << PORTB4);
 
   //Init Arduino LED for debugging 
   DDRB  |=  (1 << DDB5);
   PORTB &=  ~(1 << PORTB5);
 
-  delay(100);                         //Delay
+  delay(100);                                  //Delay
 
 }
 
@@ -129,6 +129,7 @@ boolean  ST7580_query_status(){
     while (!(Serial.available() > 0));                    //Wait for USART data to be available 
     buf[i] = Serial.read();
     //delay(1);
+    //if (buf[i] == 0x3F) break;  
     if (buf[i] == 0x09) break;
     i++; 
   }
@@ -218,7 +219,7 @@ void Host_to_ST7580_MIB_WriteRequest(uint8_t request_obj, uint8_t tx_req_data_le
   uint16_t tx_checksum = 0x0000;
   uint16_t rx_checksum = 0x0000;
   uint8_t  rx_buf[10]= {0};
-  uint8_t request_obj_data = 0x10;
+  uint8_t request_obj_data = 0x11;               //Default mode configuration
   
   //Calc checksum
   tx_checksum = MIB_WriteRequest + request_obj + tx_req_data_length + request_obj_data;
@@ -252,9 +253,9 @@ void Host_to_ST7580_MIB_WriteRequest(uint8_t request_obj, uint8_t tx_req_data_le
   //Serial.write(ACK);                              //DEBG: ACK will send before modem responds but not after
 
   while(Serial.available()) Serial.read();          //Clear the buffer.  This line is needed or else the code skips all the way to the end and sends a NAK
-  uint8_t num_read_bytes = 6;
+  uint8_t num_read_bytes = 6;     
   for (i = 0; i < num_read_bytes; i++){
-    while (!(Serial.available() > 0));              //Wait for rx byte
+    while (!(Serial.available() > 0));                        //Wait for rx byte
     rx_buf[i] = Serial.read();
   }
   
@@ -293,9 +294,84 @@ If the MCU sends a NAK to the ST7580, the ST7580 device repeats the frame only o
 changing the STX value to 03h
 */
 
+//STM example code function
 //PhyData(plmOpts, dataBuf, dataLen, confData)  STM example code function name stm32_plm01a1.c
+//int BSP_PLM_Send_Data(uint8_t plmOpts, const uint8_t* dataBuf, uint8_t dataLen, uint8_t* confData); stm32_plm01a1.h
+
+/*
+*ST7580_TX_data
+*Purpose: Sends data across the powerline.
+*
+*/
 void ST7580_TX_data(){
-  //
+  //while(Serial.available()) Serial.read();        //Clear the serial buffer
+  
+  //Init local variables 
+  uint16_t i = 0;
+  uint16_t tx_checksum = 0x0000;                                  //Checksum 
+  uint16_t rx_checksum = 0x0000;
+  uint8_t  rx_buf[10]= {0};                          
+  uint8_t freq_gain_mod = 0x04;                                   //Selects freq, gain and modulation for PLC
+  uint8_t tx_gain_sel = 0x00;                                     //Selects tx gain for PLC (Gain Selector bit is equal to “1” with freq_gain_mod byte)
+  uint8_t payload_header_length = 0x00;                           //Payload header length
+  uint8_t PAYLOAD_DATA_buf[]= "JARViE";                                //PLM data to send 
+  uint8_t tx_data_byte_length = strlen(PAYLOAD_DATA_buf);         //Added + 1 to mimic STM example code
+  uint8_t tx_payload_length = tx_data_byte_length + 1;            //Gets the length of the data payload then adds 1 byte to send data length, 1 byte for gain setting, 1 byte for the header length 
+  
+  //Determine payload header
+  if (tx_data_byte_length < 226){                                 //If payload is not empty, it must be: 4 = Header Length = Payload length < 226
+    payload_header_length = 0x04;                                 
+  }
+  else if (tx_data_byte_length == 0){                             //If payload is empty, it must be: 16 (0x10) = Header Length < 226).
+    payload_header_length = 0x10;                                 
+  } 
+
+  //Check if payload is larger than 226 bytes
+
+  //Calc checksum
+  tx_checksum =  tx_payload_length + DL_DataRequest + freq_gain_mod;
+  for (int i; i < tx_data_byte_length; i++){
+    tx_checksum += uint8_t(PAYLOAD_DATA_buf[i]);
+  }
+   
+  //Ensure T_REQ is HIGH
+  PORTB |= (1 << PORTB4);
+  delay(10);
+  
+  //Drive T_REQ LOW to start status req from modem
+  PORTB &= ~(1 << PORTB4);
+
+  //TODO: determine if loop needs to break if status message not received 25-MAR-2023
+  STATUS_FLAG = ST7580_query_status();
+  //if(STATUS_FLAG == false) return;
+  delay(10);
+
+  //Send local from from host to modem within TSR (200ms) of modem status response or else modem will timeout and host local fram will not be interpreted by modem
+  //Local frame format STX|Length|Command Code|DATA|Checksum
+  Serial.write(STX);                               //Send STX (Start of text delimiter) byte
+  delayMicroseconds(250);                          //Allow STX to be written out before driving T_REQ HIGH
+  PORTB |= (1 << PORTB4);                          //Drive T_REQ HIGH after sending STX byte from MCU to modem
+  delayMicroseconds(250);                          //Delay to allow T_REQ to go HIGH before next local frame byte is sent from MCU to modem
+  //Serial.write(tx_data_byte_length);             //Send frame length
+  Serial.write(tx_payload_length);                 //Send byte length of data field from host to modem
+  Serial.write(DL_DataRequest);                    //Send command code from MCU to modem         
+  Serial.write(freq_gain_mod);                     //Send PLM transmission options 
+  for (int j; j < tx_data_byte_length; j++){       //Send PLC data to PLM
+     Serial.write(PAYLOAD_DATA_buf[j]);
+  }
+  Serial.write(tx_checksum & 0xFF);                //Send Checksum (2 bytes long, LSByte first (e.x. checksum = 0x0017, send 0x17 first then 0x00)
+  Serial.write((tx_checksum & 0xFF00)>>8);
+
+  while(Serial.available()) Serial.read();         //Receives the ACK from the modem and clear the buffer.  This line is needed or else the code skips all the way to the end and sends a NAK
+  
+  //Check if DL_DataRequest was Successful
+  uint8_t num_read_bytes = 10;                     //Read back DL_ConfirmDataRequest sent from ST5780 modem
+  for (i = 0; i < num_read_bytes; i++){
+    while (!(Serial.available() > 0));                        //Wait for rx byte
+    rx_buf[i] = Serial.read();
+  }
+
+  //Calculate RX checksum excluding ACK and STX bytes
 }
 
 void ST7580_RX_data(){
@@ -315,6 +391,8 @@ void setup() {
   PORTD |= (1 << PORTD7);
   delay(10);
 
+  //Host_to_ST7580_MIB_WriteRequest(Modem_configuration, 2, Modem_configuration_PAYLOAD_SIZE);   //Set modem configuration to degault  
+
   /*The ST7580 modem is always the communication master. In case of no local transfer, the
   ST7580 can initiate a local communication without taking into account the external host
   status. On the other hand, when the external host wants to send a local frame, it must first
@@ -330,13 +408,15 @@ void setup() {
 
 
 void loop() {
-  Host_to_ST7580_MIB_ReadRequest(Modem_configuration, 1, Modem_configuration_PAYLOAD_SIZE);                   //Works 8/2/2025: Reads modem configuration. ACK sends by host MCU after responds with payload
-  delay(100);
+  //Host_to_ST7580_MIB_ReadRequest(Modem_configuration, 1, Modem_configuration_PAYLOAD_SIZE);                 //Works 8/2/2025: Reads modem configuration. ACK sends by host MCU after responds with payload
+  ST7580_TX_data();   //Send host PLM message
+  delay(2000);
   //Host_to_ST7580_MIB_ReadRequest(Host_interface_timeout, 1, Host_interface_timeout_PAYLOAD_SIZE);           //Works 8/2/2025: Reads modem interface timeout. ACK sends by host MCU after responds with payload
   //Host_to_ST7580_MIB_ReadRequest(Firmware_version, 1, Firmware_version_PAYLOAD_SIZE);                       //Works 8/2/2025: Reads modem firmware version. ACK sends by host MCU after responds with payload
   //Host_to_ST7580_MIB_ReadRequest(PHY_configuration, 1, PHY_configuration_PAYLOAD_SIZE);                     //Works 8/2/2025: Reads modem PHY configuration. ACK sends by host MCU after responds with payload
-  //Host_to_ST7580_MIB_WriteRequest(Modem_configuration, 1,1);                                                //Write modem configuration
+  //Host_to_ST7580_MIB_WriteRequest(Modem_configuration, 2,1);                                                //Write modem configuration
   delay(100);
 
 
 }
+
