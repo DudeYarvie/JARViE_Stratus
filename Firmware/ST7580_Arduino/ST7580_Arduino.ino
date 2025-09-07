@@ -96,8 +96,10 @@ bool STATUS_FLAG = false;
 void init_ST7580_io(){
 
   //Hold device in reset (active LOW)
-  DDRD |= (1 << DDD7);                         //Arduino D7
-  PORTD &= ~(1 << PORTD7);
+  //DDRD |= (1 << DDD7);                         //Arduino D7
+  //PORTD &= ~(1 << PORTD7);
+  pinMode(7, OUTPUT);
+  digitalWrite(7, LOW);
   
   //Tri-state PORTC5 and PORTC4 so ST7580 can drive RX and TX LEDs.  IC appears to init LEDs ON upon power-on or reset.
   DDRC  &=  ~(1 << DDC5)|~(1 << DDC4);
@@ -320,7 +322,8 @@ void ST7580_TX_data(){
   uint8_t freq_gain_mod = 0x04;                                   //Selects freq, gain and modulation for PLC
   uint8_t tx_gain_sel = 0x00;                                     //Selects tx gain for PLC (Gain Selector bit is equal to “1” with freq_gain_mod byte)
   uint8_t payload_header_length = 0x00;                           //Payload header length
-  uint8_t PAYLOAD_DATA_buf[]= "JARViE";                           //PLM data to send 
+  //uint8_t PAYLOAD_DATA_buf[]= "ENCODER123;BAROMETER99.9";       //PLM data to send. Slave NAKs this I don't know why. It can ACK ENCODER123 or BAROMETER99.9 but not "ENCODER123;BAROMETER99.9".
+  uint8_t PAYLOAD_DATA_buf[]= "BAROMETER99.9";                    //PLM data to send
   uint8_t tx_data_byte_length = strlen(PAYLOAD_DATA_buf);         //Added + 1 to mimic STM example code
   uint8_t tx_payload_length = tx_data_byte_length + 1;            //Gets the length of the data payload then adds 1 byte to send data length, 1 byte for gain setting, 1 byte for the header length 
   
@@ -409,20 +412,21 @@ void setup() {
   delay(100);
 
   //Enable modem (bring out of reset)
-  PORTD |= (1 << PORTD7);                               //Arduino D7
-  delay(10);
+  //PORTD |= (1 << PORTD7);                               //Arduino D7
+  digitalWrite(7, HIGH);
+  delay(500);
 }
 
 
 void loop() {
   //Host_to_ST7580_MIB_ReadRequest(Modem_configuration, 1, Modem_configuration_PAYLOAD_SIZE);                 //Works 8/2/2025: Reads modem configuration. ACK sends by host MCU after responds with payload
   ST7580_TX_data();   //Send host PLM message                                                                 //Works 8/31/2025
-  delay(2000);
+  delay(1000);
   //Host_to_ST7580_MIB_ReadRequest(Host_interface_timeout, 1, Host_interface_timeout_PAYLOAD_SIZE);           //Works 8/2/2025: Reads modem interface timeout. ACK sends by host MCU after responds with payload
   //Host_to_ST7580_MIB_ReadRequest(Firmware_version, 1, Firmware_version_PAYLOAD_SIZE);                       //Works 8/2/2025: Reads modem firmware version. ACK sends by host MCU after responds with payload
   //Host_to_ST7580_MIB_ReadRequest(PHY_configuration, 1, PHY_configuration_PAYLOAD_SIZE);                     //Works 8/2/2025: Reads modem PHY configuration. ACK sends by host MCU after responds with payload
   //Host_to_ST7580_MIB_WriteRequest(Modem_configuration, 2,1);                                                //Write modem configuration
-  delay(100);
+  //delay(100);
 
 
 }

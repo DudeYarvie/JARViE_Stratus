@@ -1,8 +1,8 @@
 /**
-ST7580.ino
+ST7580_Arduino_Slave.ino
 Author: Jarvis Hill (hilljarvis@gmail.com)
 Purpose: 
-Date:16-MAR-2023
+Date:03-SEP-2025
 References: 
             -ST7580 datasheet
             -ST7580 UM9XXX User Manual
@@ -96,8 +96,10 @@ bool STATUS_FLAG = false;
 void init_ST7580_io(){
 
   //Hold device in reset (active LOW)
-  DDRD |= (1 << DDD7);                         //Arduino UNO D7
-  PORTD &= ~(1 << PORTD7);
+  //DDRD |= (1 << DDD7);                         //Arduino UNO D7
+  //PORTD &= ~(1 << PORTD7);
+  pinMode(7, INPUT);
+  digitalWrite(7, LOW);
   
   //Tri-state PORTC5 and PORTC4 so ST7580 can drive RX and TX LEDs.  IC appears to init LEDs ON upon power-on or reset.
   DDRC  &=  ~(1 << DDC5)|~(1 << DDC4);
@@ -225,7 +227,6 @@ void Host_to_ST7580_MIB_ReadRequest(uint8_t request_obj, uint8_t tx_req_data_len
     Serial.write(NAK);
   }
   
-  //memcpy(buf,temp,n);                                           //Copy received message into global message buffer
 }
 
 
@@ -266,19 +267,19 @@ void Host_to_ST7580_MIB_WriteRequest(uint8_t request_obj, uint8_t tx_req_data_le
   
   //Send local from from host to modem within TSR (200ms) of modem status response or else modem will timeout and host local fram will not be interpreted by modem
   //Local frame format STX|Length|Command Code|DATA|Checksum
-  Serial.write(STX);                                //Send STX (Start of text delimiter) byte
-  delayMicroseconds(250);                           //Allow STX to be written out before driving T_REQ HIGH
-  PORTB |= (1 << PORTB4);                           //Drive T_REQ HIGH after sending STX byte from MCU to modem
-  delayMicroseconds(250);                           //Delay to allow T_REQ to go HIGH before next local frame byte is sent from MCU to modem
-  Serial.write(tx_req_data_length);                 //Send byte length of data field from host to modem
-  Serial.write(MIB_WriteRequest);                   //Send command code from MCU to modem
-  Serial.write(request_obj);                        //Send MIB Object index from host to modem
-  Serial.write(request_obj_data);                   //data to write to modem object.
-  Serial.write(tx_checksum & 0xFF);                 //Send Checksum (2 bytes long, LSByte first (e.x. checksum = 0x0017, send 0x17 first then 0x00)
+  Serial.write(STX);                                          //Send STX (Start of text delimiter) byte
+  delayMicroseconds(250);                                     //Allow STX to be written out before driving T_REQ HIGH
+  PORTB |= (1 << PORTB4);                                     //Drive T_REQ HIGH after sending STX byte from MCU to modem
+  delayMicroseconds(250);                                     //Delay to allow T_REQ to go HIGH before next local frame byte is sent from MCU to modem
+  Serial.write(tx_req_data_length);                           //Send byte length of data field from host to modem
+  Serial.write(MIB_WriteRequest);                             //Send command code from MCU to modem
+  Serial.write(request_obj);                                  //Send MIB Object index from host to modem
+  Serial.write(request_obj_data);                             //data to write to modem object.
+  Serial.write(tx_checksum & 0xFF);                           //Send Checksum (2 bytes long, LSByte first (e.x. checksum = 0x0017, send 0x17 first then 0x00)
   Serial.write((tx_checksum & 0xFF00)>>8);          
-  //Serial.write(ACK);                              //DEBG: ACK will send before modem responds but not after
+  //Serial.write(ACK);                                        //DEBG: ACK will send before modem responds but not after
 
-  while(Serial.available()) Serial.read();          //Clear the buffer.  This line is needed or else the code skips all the way to the end and sends a NAK
+  while(Serial.available()) Serial.read();                    //Clear the buffer.  This line is needed or else the code skips all the way to the end and sends a NAK
   uint8_t num_read_bytes = 6;     
   for (i = 0; i < num_read_bytes; i++){
     while (!(Serial.available() > 0));                        //Wait for rx byte
@@ -315,26 +316,40 @@ void ST7580_RX_data()
   //Init local variables 
   uint16_t i = 0;
   uint16_t rx_checksum = 0x0000;
-  uint8_t  rx_buf[20]= {0};                          
+  uint8_t  rx_buf[20]= {0};
+  char incomingByte = ""; 
+  uint16_t payload_length = 0;                        
   
-  //Wait here until data is from Maser is received. Then read it.
-  //TODO: ADD way to dynamically read # of bytes based on payload byte size in DL_Indication message
-  //while(1){
-  for (i = 0; i < 15; i++){
-    while (!(Serial.available() > 0));                            //Wait for rx byte to load into MCU serial buffer
-    rx_buf[i] = Serial.read();
-    //if(rx_buf[i] == '\n') break;                                //Break loop once EOD (end of data) character is received
+  //Wait to receive message from modem
+  while(1){
+    while(Serial.available()) Serial.read();                      //Clear the MCU UART buffer (might not need this)
+    while (!(Serial.available() > 0));                            //Wait until byte is received in the MCU UART buffer
+    incomingByte = Serial.read();                                 //Read the byte                            
+    if (incomingByte == STX){                                     //Wait for modem start-text-frame byte 0x02, indicating that it wants to send a message to the MCU
+      
+      //Buffer the modem message 
+      rx_buf[0] = STX;                                            //Store the STX byte into buffer[0]                                        
+      while (!(Serial.available() > 0));                          //Wait until the next message byte is sent
+      rx_buf[1] = Serial.read();                                  //Store the payload data length into buffer[1] 
+      payload_length = int(rx_buf[1]);                            //Convert payload length into an unsigned int (making it into an int is OK too)
+      for (i = 2; i < (payload_length + 5) ; i++){                //Starts at index 2 because modem message bytes 0 and 1 have already been bufferd. Adds 5 for the STX, DL_Indication, payload size and two checksum bytes
+        while (!(Serial.available() > 0));                        //Wait for rx byte to load into MCU serial buffer
+        rx_buf[i] = Serial.read();                                //Buffer the message byte
+      }
+      break;                                                      //Message buffering complete. Break the while(1) loop. 
+    }
   }
 
   //Determine number of data bytes received in the DL_Indication
-  uint8_t rx_data_byte_length = int(rx_buf[1]) + 5;               //Buffer indexes at 0, byte 1 (rx_buf[1]) = payload size in bytes in add 5 for the STX, DL_Indication, payload size and two checksum bytes
+  uint8_t rx_data_byte_length = int(rx_buf[1]) + 5;               //Buffer indexes at 0, byte 1 (rx_buf[1]) = payload size in bytes. Adds 5 for the STX, DL_Indication, payload size and two checksum bytes
+  //uint8_t rx_data_byte_length = 15; 
 
-  //Calculate RX checksum excluding ACK and STX bytes
+  //Calculate RX checksum excluding STX and Checksum bytes
   uint8_t checksum_bytes = rx_data_byte_length - 3;               //Do not calc check sum on modem STX and two checksum bytes, that's why there's a minus 3
   for (i = 0; i < checksum_bytes; i++){
     rx_checksum += rx_buf[i+1];;                                  //Data for checksum calc starts are buffer index 1 because STX byte should not be factored into checksum calc
   }
-  delayMicroseconds(250);
+  delayMicroseconds(250);                                         //Delay
  
   //Send ACK from if DL_Confirmation checksum from modem matches MCU calculated Checksum
   //If the MCU sends a NAK to the ST7580, the ST7580 device repeats the frame only once after a delay corresponding to TACK,
@@ -345,10 +360,10 @@ void ST7580_RX_data()
   else{
     Serial.write(NAK);
   }
-
+  
 }
 
-
+/*SETUP*/
 void setup() {
   
   init_ST7580_io();
@@ -358,11 +373,13 @@ void setup() {
   delay(100);
 
   //Enable modem (bring out of reset)
-  PORTD |= (1 << PORTD7);                               //Arduino D7
-  delay(10);
+  //PORTD |= (1 << PORTD7);                               //Arduino D7
+  digitalWrite(7, HIGH);
+  delay(500);
 }
 
-
+/*MAIN*/
+//TODO: Make MIB function call inputs textual. Convert numbers into variabales. 06-SEP-2025
 void loop() {
   //Host_to_ST7580_MIB_ReadRequest(Modem_configuration, 1, Modem_configuration_PAYLOAD_SIZE);                 //Works 8/2/2025: Reads modem configuration. ACK sends by host MCU after responds with payload
   ST7580_RX_data();   //Send host PLM message                                                                 //Works 8/31/2025
@@ -371,8 +388,7 @@ void loop() {
   //Host_to_ST7580_MIB_ReadRequest(Firmware_version, 1, Firmware_version_PAYLOAD_SIZE);                       //Works 8/2/2025: Reads modem firmware version. ACK sends by host MCU after responds with payload
   //Host_to_ST7580_MIB_ReadRequest(PHY_configuration, 1, PHY_configuration_PAYLOAD_SIZE);                     //Works 8/2/2025: Reads modem PHY configuration. ACK sends by host MCU after responds with payload
   //Host_to_ST7580_MIB_WriteRequest(Modem_configuration, 2,1);                                                //Write modem configuration
-  //delay(100);
-
+  
 
 }
 
