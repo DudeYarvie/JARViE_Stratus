@@ -1,6 +1,8 @@
 # JARViE_Stratus
 ST7580 Powerline Modem 
 
+![NUCLEO_PLM01A1](https://github.com/DudeYarvie/JARViE_Stratus/blob/main/References/Pics/X_NUCLEO_PLM01A1.PNG)
+
 # Table of Contents
 <details><summary>click to expand or hide</summary>
  
@@ -23,7 +25,8 @@ ST7580 Powerline Modem
 |HI|Host interface|
 |UW|Unique word, a predefined sequence used to mark the start of a physical frame. The physical layer also provides SNR estimation on the received unique word|
 
-# HW Setup
+# Hardware Setup
+![Hardware_Setup](https://github.com/DudeYarvie/JARViE_Stratus/blob/main/References/Pics/HW_Setup.PNG)
 ## Jumpers 
 ## Quick Setup 
 
