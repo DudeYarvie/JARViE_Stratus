@@ -13,9 +13,18 @@ UNO R3 (default configuration) and ST morpho (optional) connectors.
 
 ## Hardware Setup
 ### Jumpers 
-<p align="center">
+<p align="center" >
   <img width="660" height="500" src="https://github.com/DudeYarvie/JARViE_Stratus/blob/main/References/Pics/Jumpers.png" />
 </p>
+
+Jumper|X_NUCLEO PLM01A1|Arduino|Description
+|:-:|:-:|:-:|:--|
+|J7|||1&2-, 2&3-, Open- Floating 
+|J8|||1&2- 2&3-, Open- Floating
+|JP9|||Stuffed-,  Nostuff- Floating
+|JP10|||Stuffed-,  Nostuff- Floating
+
+
 
 ### ST NUCLEO
 <p align="center">
@@ -45,11 +54,11 @@ UNO R3 (default configuration) and ST morpho (optional) connectors.
 ## Data Transmission
 Messages can be transmitted on the powerline by wrapping them up in one of the following frame formats. The frame format the ST7580 device will adhere to for sending and receiving messages must be configured by the external host. 
 * Physical (PHY) 
-* DataLink
-* Security Servics
+* DataLink (DL)
+* Security Services (SS)
 
 ### DataLink
-The external host is allowed to choose the CRC algorithm used (length, endianness, fields involved in calculation) through the modem configuration (0x00) MIB object. The length field is automatically handled by ST7580 and its value is by default equal to the length of payload and CRC fields.
+The embedded DL layer hosted in the protocol controller offers framing and error correction services. The external host is allowed to choose the CRC algorithm used (length, endianness, fields involved in calculation) through the modem configuration (0x00) MIB object. The length field is automatically handled by ST7580 and its value is by default equal to the length of payload and CRC fields.
 
 #### DL_DataRequest (50h)
 Send this command to the ST7580 modem from a host MCU to broadcast a message on the actual powerline.
@@ -157,8 +166,8 @@ ZC delay = 13 * 13 µs = 169 µs. Delay between the received UW last bit and the
 ***16-bit CRC =*** = PAYLOAD SIZE + DL_ DataIndication + PAYLOAD = 0x019C  **(sent LSByte first)**
 
 ### Physical 
-#### Frame Structure
-### Security Services
-#### Frame Structure
+Hosted in the PHY processor, implements two different modulation schemes for communication through power line: a B-FSK modulation up to
+9.6 kbps and a multi-mode PSK modulation with channel quality estimation, dual channel receiving mode and convolutional coding, delivering a throughput up to 28.8 kbps.
 
-### DATA_IN to Tx Carrier Output Delay
+### Security Services
+Provides authentication to the payload using cryptographic algorithms based on AES with 128-bit keys. Authentication is provided appending to user data an AES-CMAC digest. A dedicated key stored in the MIB object SS key 02h, is used for both transmitting and receiving frames. 
