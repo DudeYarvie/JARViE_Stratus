@@ -1,11 +1,28 @@
-# JARViE_Stratus
-ST7580 Powerline Modem 
-
-![NUCLEO_PLM01A1](https://github.com/DudeYarvie/JARViE_Stratus/blob/main/References/Pics/X_NUCLEO_PLM01A1.PNG)
-
+# ST7580 Demo Boards
+The purpose of this repo is to serve as a sort cliff notes for using the ST7580 powerline modem. It is meant to deconvolute the ST datasheets and provide a more clear and consise way to use the modem via the JARVIE Stratus or ST X-NUCLEO-PLM01A1 demo boards.
 # Table of Contents
-<details><summary>click to expand or hide</summary>
- 
+# JARViE_Stratus
+Coming Soon! 
+# X-NUCLEO-PLM01A1
+The X-NUCLEO-PLM01A1 expansion board for STM32 Nucleo is based on the ST7580 FSK, PSK multi-mode power line networking system-on-chip. It provides an affordable and easy-to-use solution for the development of connectivity applications based on power line communication. It lets you easily evaluate the communication features of the ST7580 based on a DC two-wire link between two boards.
+You can also perform evaluation on an AC power line by connecting the X-NUCLEO-PLM01A1 to an STEVAL-XPLM01CPL board providing effective AC coupling and isolation. The X-NUCLEO-PLM01A1 is interfaced with the STM32 controller via UART and GPIO pins and is compatible with the Arduino
+UNO R3 (default configuration) and ST morpho (optional) connectors. 
+<p align="center">
+  <img width="560" height="400" src="https://github.com/DudeYarvie/JARViE_Stratus/blob/main/References/Pics/X_NUCLEO_PLM01A1.PNG" />
+</p>
+
+## Hardware Setup
+### Jumpers 
+<p align="center">
+  <img width="660" height="500" src="https://github.com/DudeYarvie/JARViE_Stratus/blob/main/References/Pics/Jumpers.png" />
+</p>
+
+### ST NUCLEO
+<p align="center">
+  <img width="660" height="500" src="https://github.com/DudeYarvie/JARViE_Stratus/blob/main/References/Pics/HW_Setup.PNG" />
+</p>
+
+### Arduino
 # Abbreviations
 |Abbreviation| Description|
 |:-:|:--|
@@ -24,11 +41,6 @@ ST7580 Powerline Modem
 |BIO|Basic input output|
 |HI|Host interface|
 |UW|Unique word, a predefined sequence used to mark the start of a physical frame. The physical layer also provides SNR estimation on the received unique word|
-
-# Hardware Setup
-![Hardware_Setup](https://github.com/DudeYarvie/JARViE_Stratus/blob/main/References/Pics/HW_Setup.PNG)
-## Jumpers 
-## Quick Setup 
 
 ## Data Transmission
 Messages can be transmitted on the powerline by wrapping them up in one of the following frame formats. The frame format the ST7580 device will adhere to for sending and receiving messages must be configured by the external host. 
