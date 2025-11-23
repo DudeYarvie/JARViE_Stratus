@@ -17,15 +17,6 @@ UNO R3 (default configuration) and ST morpho (optional) connectors.
   <img width="660" height="500" src="https://github.com/DudeYarvie/JARViE_Stratus/blob/main/References/Pics/Jumpers.png" />
 </p>
 
-Jumper|X_NUCLEO PLM01A1|Arduino|Description
-|:-:|:-:|:-:|:--|
-|J7|||1&2-, 2&3-, Open- Floating 
-|J8|||1&2- 2&3-, Open- Floating
-|JP9|||Stuffed-,  Nostuff- Floating
-|JP10|||Stuffed-,  Nostuff- Floating
-
-
-
 ### ST NUCLEO
 <p align="center">
   <img width="660" height="500" src="https://github.com/DudeYarvie/JARViE_Stratus/blob/main/References/Pics/HW_Setup.PNG" />
