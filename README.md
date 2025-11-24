@@ -12,17 +12,20 @@ UNO R3 (default configuration) and ST morpho (optional) connectors.
 </p>
 
 ## Hardware Setup
+Two power line communication (PLC) modems are rquired to create powerline network. A processor must be used to intferace with the modem in order to send and receive messages transmitted over the powerline.  The modems serve as a D/A and A/D converter where the analog block interfaces with the powerline and the digital block interfaces with the processor. The setup below shows to create a powerline network with two NUCLEO-PLM01A1 ST7580 demo boards stacked on top of ST NUCLEO microcontroller development boards. 
+<p align="center">
+  <img width="860" height="700" src="https://github.com/DudeYarvie/JARViE_Stratus/blob/main/References/Pics/HW_Setup.PNG" />
+</p>
+
+One additional thing to note, for the DC supply generating the power line to stay voltage compliant (i.e. maintain its set voltage and not enter constant-current mode) the supply must source enough current to the X-NUCLEO-PLM01A1 PLM_CONNECTOR to overcome the input impedance of its analog front-end.  At DC, the input impedance of the PLM01A1 front-end looks like 150 Ohms.  So, the DC supply needs to be able to source a minimum current of I = V / 150 Ohms, where V is the voltage set point of the supply.  Two PLM01A1 boards look like a load of 75 Ohms on the line (150 || 150), so the supply needs to be able to source a minimum current of I = V / 75 Ohms.  In general, the supply needs to source a minimum current of,
+
+<p align="center">I = V / (150 / N), where V = supply set voltage, N = number of PLM01A1 boards </p>
+
 ### Jumpers 
 <p align="center" >
   <img width="660" height="500" src="https://github.com/DudeYarvie/JARViE_Stratus/blob/main/References/Pics/Jumpers.png" />
 </p>
 
-### ST NUCLEO
-<p align="center">
-  <img width="660" height="500" src="https://github.com/DudeYarvie/JARViE_Stratus/blob/main/References/Pics/HW_Setup.PNG" />
-</p>
-
-### Arduino
 # Abbreviations
 |Abbreviation| Description|
 |:-:|:--|
