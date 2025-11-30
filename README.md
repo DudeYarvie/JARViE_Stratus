@@ -18,7 +18,7 @@ Two or more power line communication (PLC) modems are rquired to create powerlin
   <img width="860" height="700" src="https://github.com/DudeYarvie/JARViE_Stratus/blob/main/References/Pics/HW_Setup.PNG" />
 </p>
 
-One additional thing to note, the PLM DC supply generating the powerline to stay voltage compliant (i.e. maintain its set voltage and not enter constant-current mode) the supply must source enough current to the X-NUCLEO-PLM01A1 PLM_CONNECTOR to overcome the input impedance of its analog front-end.  At DC, the input impedance of the PLM01A1 front-end looks like 150 Ohms.  So, the DC supply needs to be able to source a minimum current of I = V / 150 Ohms, where V is the voltage set point of the supply.  Two PLM01A1 boards look like a load of 75 Ohms on the line (150 || 150), so the supply needs to be able to source a minimum current of I = V / 75 Ohms.  In general, the supply needs to source a minimum current of,
+One additional thing to note, in order for the PLM DC supply generating the powerline to stay voltage compliant (i.e. maintain its set voltage and not enter constant-current mode) it must source enough current to the X-NUCLEO-PLM01A1 PLM_CONNECTOR to overcome the input impedance of its analog front-end.  At DC, the input impedance of the PLM01A1 front-end looks like 150 Ohms. So, the DC supply needs to be able to source a minimum current of I = V / 150 Ohms, where V is the voltage set point of the supply.  Two PLM01A1 boards look like a load of 75 Ohms on the line (150 || 150), so the supply needs to be able to source a minimum current of I = V / 75 Ohms.  In general, the supply needs to source a minimum current of,
 
 <p align="center">I = V / (150 / N), where V = supply set voltage, N = number of PLM01A1 boards </p>
 
@@ -26,6 +26,20 @@ One additional thing to note, the PLM DC supply generating the powerline to stay
 <p align="center" >
   <img width="660" height="500" src="https://github.com/DudeYarvie/JARViE_Stratus/blob/main/References/Pics/Jumpers.png" />
 </p>
+
+##  Host-to-Modem Interface
+All communications between the host MCU and the modem are done over a 3-wire bus shared between the devices.  The bus consists of a half-duplexed UART and a GPIO signal.  
+* **TXD** carries data from the ST7580 to the host
+* **RXD** carries data from the host to the ST7580
+* **T_REQ** the modem request input signal controlled by the host 
+<p align="center" >
+  <img width="460" height="300" src="https://github.com/DudeYarvie/JARViE_Stratus/blob/main/References/Pics/Host_modem_interface.PNG" />
+</p>
+The host can first check if the modem is free/ready to receive commands by driving the T_REQ signal LOW. The modem will respond with two bytes, byte0 will always be 0x3F and the byte1 will contain the modem status,
+
+Byte Index|Bit Index|Description|Available Values 
+|:-:|:-:|:-:|:-:|
+
 
 # Abbreviations
 |Abbreviation| Description|
@@ -43,10 +57,10 @@ One additional thing to note, the PLM DC supply generating the powerline to stay
 |Tsr|Service request timeout|
 |SS|Security services|
 |BIO|Basic input output|
-|HI|Host interface|
+|HI|Host interface, 3-wire bust shared between the host MCU and ST7580 modem|
 |UW|Unique word, a predefined sequence used to mark the start of a physical frame. The physical layer also provides SNR estimation on the received unique word|
 
-## Data Transmission
+## Powerline Data Transmission
 Messages can be transmitted on the powerline by wrapping them up in one of the following frame formats. The frame format the ST7580 device will adhere to for sending and receiving messages must be configured by the external host. 
 * Physical (PHY) 
 * DataLink (DL)
