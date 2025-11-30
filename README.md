@@ -12,7 +12,7 @@ UNO R3 (default configuration) and ST morpho (optional) connectors.
 </p>
 
 ## Hardware Setup
-Two power line communication (PLC) modems are rquired to create powerline network. A processor must be used to intferace with the modem in order to send and receive messages transmitted over the powerline.  The modems serve as a D/A and A/D converter where the analog block interfaces with the powerline and the digital block interfaces with the processor. The setup below shows how to create a powerline network with two NUCLEO-PLM01A1 ST7580 demo boards stacked on top of ST NUCLEO microcontroller development boards. There are two power supplies, one 12VDC supply to power the hardware and another PLM power supply to create the powerline the ST7580 modems will communicate over.
+Two or more power line communication (PLC) modems are rquired to create powerline network. A processor must be used to interface with the modem in order to send and receive messages transmitted over the powerline.  The modems serve as a D/A and A/D converter where the analog block interfaces with the powerline and the digital block interfaces with the processor. The setup below shows how to create a powerline network with two NUCLEO-PLM01A1 ST7580 demo boards stacked on top of ST NUCLEO microcontroller development boards. There are two power supplies, one 12VDC supply to power the hardware and another PLM power supply to create the powerline the ST7580 modems will communicate over.
 
 <p align="center">
   <img width="860" height="700" src="https://github.com/DudeYarvie/JARViE_Stratus/blob/main/References/Pics/HW_Setup.PNG" />
@@ -133,11 +133,11 @@ STX|PAYLOAD SIZE|DL_DataIndication|PAYLOAD|16-bit CRC
 |:-:|:-:|:-:|:-:|:-:|
 
 **Example:** 
-STX|PAYLOAD SIZE|DL_DataConfirm|PAYLOAD|16-bit CRC
+STX|PAYLOAD SIZE|DL_DataIndication|PAYLOAD|16-bit CRC
 |:-:|:-:|:-:|:-:|:-:|
 02 | 05 | 52 | 18 19 0D 5C AB | 9C 01
 
-***PAYLOAD:*** IndicaionData + message
+***PAYLOAD:*** IndicationData + message
 
 ***IndicationData:*** 18 19 0D 5C
 
