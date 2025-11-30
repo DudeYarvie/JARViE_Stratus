@@ -27,19 +27,27 @@ One additional thing to note, in order for the PLM DC supply generating the powe
   <img width="660" height="500" src="https://github.com/DudeYarvie/JARViE_Stratus/blob/main/References/Pics/Jumpers.png" />
 </p>
 
-##  Host-to-Modem Interface
-All communications between the host MCU and the modem are done over a 3-wire bus shared between the devices.  The bus consists of a half-duplexed UART and a GPIO signal.  
+##  Host-Modem Interface
+All communications between the external host (MCU) and the modem are done over a 3-wire bus shared between the devices.  The bus consists of a half-duplexed UART and a discrete digital signal.  
 * **TXD** carries data from the ST7580 to the host
 * **RXD** carries data from the host to the ST7580
-* **T_REQ** the modem request input signal controlled by the host 
+* **T_REQ** modem request input, used by the host to let the modem know the host wants to send it data 
 <p align="center" >
   <img width="460" height="300" src="https://github.com/DudeYarvie/JARViE_Stratus/blob/main/References/Pics/Host_modem_interface.PNG" />
 </p>
-The host can first check if the modem is free/ready to receive commands by driving the T_REQ signal LOW. The modem will respond with two bytes, byte0 will always be 0x3F and the byte1 will contain the modem status,
+
+## Host-Modem Communication
+The host can first check if the modem is free/ready to receive commands by driving the T_REQ signal LOW. The modem will respond with a two byte wide status message.  Byte0 will always be 0x3F (preamble) and byte1 will contain modem status information.
 
 Byte Index|Bit Index|Description|Available Values 
-|:-:|:-:|:-:|:-:|
-
+|:-:|:-:|:--|:--|
+|0|-|Status message first byte|3Fh|
+|1|0|Configuration status|0: autoreconfiguration correctly occurred, 1: autoreconfiguration occurred with errors or at least the Modem Config, PHY Config or SS Key MIB objects hasn’t changed its default value after boot|
+||1|Transmission status|0: the ST7580 is not transmitting a power line frame, 1: the ST7580 is transmitting a power line frame|
+||2|Reception status|0: the ST7580 is not receiving a power line frame, 1: the ST7580 is receiving a power line frame|
+||3-4|Active PLC layer|0: PHY layer, 1: DL layer, 2: SS layer, 3: ST7580 not configured|
+||5|Overcurrent flag|0: no overcurrent event on last transmission, 1: last transmission generated at least one overcurrent event|
+||6-7|Est. modem temp|0: T < 70 °C (typical), 1: 70 °C < T <100 °C (typical), 2: 100 °C < T < 125 °C (typical), 3: T > 125 °C (typical)|
 
 # Abbreviations
 |Abbreviation| Description|
